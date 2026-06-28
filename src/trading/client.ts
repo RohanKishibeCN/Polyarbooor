@@ -1,5 +1,8 @@
 import axios from 'axios';
 import { ClobClient, Side, OrderType } from '@polymarket/clob-client';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyClobClient = any;
 import { privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient, http } from 'viem';
 import { polygon } from 'viem/chains';
@@ -7,9 +10,6 @@ import type { Settings, OrderParams, RawOrderBook } from '../types.js';
 import { logger } from '../utils/logger.js';
 
 let cachedClient: ClobClient | null = null;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyClobClient = any;
 
 function getSigner(settings: Settings) {
   const formattedKey = settings.privateKey.startsWith('0x')
@@ -24,7 +24,7 @@ function getSigner(settings: Settings) {
   });
 }
 
-export function getClient(settings: Settings): ClobClient {
+export async function getClient(settings: Settings): Promise<ClobClient> {
   if (cachedClient) return cachedClient;
 
   if (!settings.privateKey) {
@@ -35,23 +35,22 @@ export function getClient(settings: Settings): ClobClient {
   const host = settings.clobHost;
   const chainId = settings.chainId;
 
+  // 使用官方 SDK 推荐模式：先创建临时客户端派生凭证，再用凭证创建正式客户端
+  const tempClient = new ClobClient(host, chainId, signer);
+  const creds = await tempClient.createOrDeriveApiKey();
+
   cachedClient = new ClobClient(
     host,
     chainId,
     signer,
-    undefined,
+    creds,
     settings.signatureType,
     settings.funder || undefined,
   );
 
-  logger.info('正在从私钥派生用户 API 凭证...');
-  const derived = cachedClient.createOrDeriveApiKey();
-  (cachedClient as AnyClobClient).setApiCreds(derived);
-
-  const address =
-    (cachedClient as AnyClobClient).getAddress?.() ?? settings.funder;
   logger.info('✅ API 凭证配置成功');
   if (!settings.hideCredentials) {
+    const address = await (cachedClient as AnyClobClient).getAddress();
     logger.info(`   钱包地址: ${address}`);
   }
   logger.info(`   资金方: ${settings.funder}`);
@@ -60,8 +59,12 @@ export function getClient(settings: Settings): ClobClient {
 }
 
 export async function getBalance(settings: Settings): Promise<number> {
+  if (settings.dryRun) {
+    return 0; // 模拟模式不需要真实余额
+  }
+
   try {
-    const client = getClient(settings);
+    const client = await getClient(settings);
     const result = await (client as AnyClobClient).getBalanceAllowance({
       asset_type: 'COLLATERAL' as unknown as number,
       signature_type: settings.signatureType,
@@ -69,7 +72,7 @@ export async function getBalance(settings: Settings): Promise<number> {
 
     if (result && typeof result === 'object' && 'balance' in result) {
       const raw = parseFloat(
-        (result as Record<string, string>).balance,
+        (result as unknown as Record<string, string>).balance,
       );
       return raw / 1_000_000;
     }
@@ -87,7 +90,7 @@ export async function placeOrder(
   price: number,
   size: number,
 ): Promise<unknown> {
-  const client = getClient(settings);
+  const client = await getClient(settings);
   const sideEnum = side === 'BUY' ? Side.BUY : Side.SELL;
 
   const signedOrder = await client.createOrder({
@@ -97,7 +100,7 @@ export async function placeOrder(
     side: sideEnum,
   });
 
-  return (client as AnyClobClient).postOrder(signedOrder, OrderType.GTC);
+  return client.postOrder(signedOrder, OrderType.GTC);
 }
 
 export async function placeOrdersFast(

@@ -1,4 +1,3 @@
-import { loadSettings } from '../config.js';
 import type { Settings } from '../types.js';
 import { findCurrentBtc15minMarket } from '../market/discovery.js';
 import { fetchMarketFromSlug } from '../market/lookup.js';
@@ -77,7 +76,7 @@ export class SimpleArbitrageBot {
     }
 
     // 确保 ClobClient 已初始化
-    getClient(this.settings);
+    await getClient(this.settings);
 
     logger.info(`市场 ID: ${this.marketId}`);
     logger.info(`UP Token: ${this.yesTokenId}`);
@@ -209,7 +208,7 @@ export class SimpleArbitrageBot {
 
     let scanCount = 0;
 
-    const loop = async () => {
+    while (true) {
       scanCount += 1;
       logger.info(
         `\n[Scan #${scanCount}] ${new Date().toISOString().slice(11, 19)}`,
@@ -251,16 +250,13 @@ export class SimpleArbitrageBot {
 
       await this.checkDailyRollover();
       await sleep(intervalMs);
-      loop();
-    };
+    }
 
     process.on('SIGINT', async () => {
       logger.info('\n🛑 机器人已被用户停止');
       await this.pushDailySummary();
       process.exit(0);
     });
-
-    await loop();
   }
 
   private async checkDailyRollover() {
