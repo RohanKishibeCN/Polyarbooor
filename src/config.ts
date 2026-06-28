@@ -58,7 +58,7 @@ export function loadSettings(): Settings {
     apiRetryCount: envInt('API_RETRY_COUNT', 3),
     apiRetryDelay: envNum('API_RETRY_DELAY', 1.0),
 
-    scanInterval: envNum('SCAN_INTERVAL', 0),
+    scanInterval: envNum('SCAN_INTERVAL', 2),
     marketSwitchDelay: envNum('MARKET_SWITCH_DELAY', 30),
 
     notionEnabled: envBool('NOTION_ENABLED', false),

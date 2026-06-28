@@ -70,9 +70,19 @@ export class SimpleArbitrageBot {
     this.yesTokenId = info.yesTokenId;
     this.noTokenId = info.noTokenId;
 
-    const match = slug.match(/btc-updown-15m-(\d+)/);
-    if (match) {
-      this.marketEndTimestamp = parseInt(match[1], 10) + 900;
+    // 使用 API 返回的 endDate 计算结束时间
+    if (info.endDate) {
+      const endMs = Date.parse(info.endDate);
+      if (!isNaN(endMs)) {
+        this.marketEndTimestamp = Math.floor(endMs / 1000);
+      }
+    }
+    // 如果 endDate 不可用，回退到 slug + 900
+    if (!this.marketEndTimestamp) {
+      const match = slug.match(/btc-updown-15m-(\d+)/);
+      if (match) {
+        this.marketEndTimestamp = parseInt(match[1], 10) + 900;
+      }
     }
 
     // 确保 ClobClient 已初始化
@@ -203,10 +213,14 @@ export class SimpleArbitrageBot {
     );
     logger.info(`成本阈值: $${this.settings.targetPairCost}`);
     logger.info(`订单数量: ${this.settings.orderSize} 股`);
+    logger.info(`扫描间隔: ${this.settings.scanInterval}秒`);
     logger.info('='.repeat(70));
     logger.info('');
 
     let scanCount = 0;
+
+    // 最小扫描间隔为 2 秒，防止 API 限流
+    const minInterval = Math.max(intervalMs, 2000);
 
     while (true) {
       scanCount += 1;
@@ -249,7 +263,7 @@ export class SimpleArbitrageBot {
       }
 
       await this.checkDailyRollover();
-      await sleep(intervalMs);
+      await sleep(minInterval);
     }
 
     process.on('SIGINT', async () => {
