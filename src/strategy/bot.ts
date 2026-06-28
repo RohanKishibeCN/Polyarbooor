@@ -24,7 +24,7 @@ export class SimpleArbitrageBot {
 
   ledger: TradeLedger;
   private notion: NotionReporter;
-  private _lastSummaryDate: string;
+  private _lastPushDate: string;
   private _startTime: number;
 
   constructor(settings: Settings) {
@@ -37,7 +37,7 @@ export class SimpleArbitrageBot {
       settings.notionDatabaseId,
       settings.notionEnabled,
     );
-    this._lastSummaryDate = new Date().toISOString().slice(0, 10);
+    this._lastPushDate = '';
     this._startTime = Date.now();
 
     this.marketSlug = '';
@@ -46,8 +46,29 @@ export class SimpleArbitrageBot {
     this.noTokenId = '';
   }
 
+  /** 返回 Asia/Shanghai 时区的日期字符串（YYYY-MM-DD） */
+  private getCstDate(): string {
+    const now = new Date();
+    const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    return cst.toISOString().slice(0, 10);
+  }
+
+  /** 返回 Asia/Shanghai 时区的小时和分钟（例: {h:9, m:5}） */
+  private getCstHourMinute(): { h: number; m: number } {
+    const now = new Date();
+    const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    return { h: cst.getUTCHours(), m: cst.getUTCMinutes() };
+  }
+
+  /** 返回昨天的日期（Asia/Shanghai） */
+  private getYesterdayCst(): string {
+    const now = new Date();
+    const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    cst.setUTCDate(cst.getUTCDate() - 1);
+    return cst.toISOString().slice(0, 10);
+  }
+
   async init(): Promise<void> {
-    // 自动发现市场或使用配置的
     let slug: string;
     try {
       slug = await findCurrentBtc15minMarket();
@@ -70,14 +91,12 @@ export class SimpleArbitrageBot {
     this.yesTokenId = info.yesTokenId;
     this.noTokenId = info.noTokenId;
 
-    // 使用 API 返回的 endDate 计算结束时间
     if (info.endDate) {
       const endMs = Date.parse(info.endDate);
       if (!isNaN(endMs)) {
         this.marketEndTimestamp = Math.floor(endMs / 1000);
       }
     }
-    // 如果 endDate 不可用，回退到 slug + 900
     if (!this.marketEndTimestamp) {
       const match = slug.match(/btc-updown-15m-(\d+)/);
       if (match) {
@@ -85,7 +104,6 @@ export class SimpleArbitrageBot {
       }
     }
 
-    // 确保 ClobClient 已初始化
     await getClient(this.settings);
 
     logger.info(`市场 ID: ${this.marketId}`);
@@ -93,7 +111,6 @@ export class SimpleArbitrageBot {
     logger.info(`DOWN Token: ${this.noTokenId}`);
     logger.info(`结束时间戳: ${this.marketEndTimestamp ?? 'Unknown'}`);
 
-    // 初始余额快照
     const balance = await getBalance(this.settings);
     this.ledger.setBalanceSnapshot(balance);
   }
@@ -121,7 +138,6 @@ export class SimpleArbitrageBot {
     if (opp) {
       this.opportunitiesFound += 1;
 
-      // 风控检查
       if (!this.preTradeCheck(timeRemaining)) {
         return false;
       }
@@ -164,7 +180,6 @@ export class SimpleArbitrageBot {
       return true;
     }
 
-    // 无机会时，更新余额快照
     const balance = await getBalance(this.settings);
     this.ledger.setBalanceSnapshot(balance);
 
@@ -215,11 +230,10 @@ export class SimpleArbitrageBot {
     logger.info(`订单数量: ${this.settings.orderSize} 股`);
     logger.info(`扫描间隔: ${this.settings.scanInterval}秒`);
     logger.info('='.repeat(70));
+    logger.info(`📅 每日 09:05 (UTC+8) 推送前一日汇总到 Notion`);
     logger.info('');
 
     let scanCount = 0;
-
-    // 最小扫描间隔为 2 秒，防止 API 限流
     const minInterval = Math.max(intervalMs, 2000);
 
     while (true) {
@@ -262,7 +276,7 @@ export class SimpleArbitrageBot {
         );
       }
 
-      await this.checkDailyRollover();
+      await this.checkScheduledPush();
       await sleep(minInterval);
     }
 
@@ -273,14 +287,33 @@ export class SimpleArbitrageBot {
     });
   }
 
-  private async checkDailyRollover() {
-    const today = new Date().toISOString().slice(0, 10);
-    if (today !== this._lastSummaryDate) {
-      await this.pushDailySummary();
-      this.ledger.reset();
-      this._startTime = Date.now();
-      this._lastSummaryDate = today;
-    }
+  private async checkScheduledPush() {
+    const today = this.getCstDate();
+    if (today === this._lastPushDate) return;
+
+    const { h, m } = this.getCstHourMinute();
+    // 09:05 之后触发（给一个 5 分钟宽限期，确保所有市场都已结算）
+    if (h < 9 || (h === 9 && m < 5)) return;
+
+    this._lastPushDate = today;
+
+    // 推送上一天的汇总
+    const yesterday = this.getYesterdayCst();
+    const balance = await getBalance(this.settings);
+    const uptime = (Date.now() - this._startTime) / 1000;
+    const text = this.ledger.buildSummaryText(
+      balance,
+      this.settings.dryRun,
+      uptime,
+      this.opportunitiesFound,
+    );
+    const title = `${yesterday} BTC Arb Summary`;
+    await this.notion.pushTextPage(yesterday, title, text);
+
+    // 重置账本
+    this.ledger.reset();
+    this._startTime = Date.now();
+    this.opportunitiesFound = 0;
   }
 
   async pushDailySummary() {
@@ -292,8 +325,9 @@ export class SimpleArbitrageBot {
       uptime,
       this.opportunitiesFound,
     );
-    const title = `${this._lastSummaryDate} BTC Arb Summary`;
-    await this.notion.pushTextPage(this._lastSummaryDate, title, text);
+    const yesterday = this.getYesterdayCst();
+    const title = `${yesterday} BTC Arb Summary`;
+    await this.notion.pushTextPage(yesterday, title, text);
   }
 }
 
