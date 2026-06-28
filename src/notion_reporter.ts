@@ -30,11 +30,10 @@ export class NotionReporter {
       const page = await this.client.pages.create({
         parent: { database_id: this.databaseId },
         properties: {
-          '日期': { date: { start: dateStr } },
-          '名称': { title: [{ text: { content: title } }] },
+          'Title': { title: [{ text: { content: title } }] },
+          'Date': { date: { start: dateStr } },
+          'Content': { rich_text: [{ text: { content: bodyText } }] },
         },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        children: this.textToBlocks(bodyText) as any,
       });
       logger.info(`✅ 每日汇总已推送到 Notion (页面 ID: ${page.id})`);
       return page;
@@ -42,20 +41,5 @@ export class NotionReporter {
       logger.error(`❌ 推送 Notion 失败: ${e}`);
       return null;
     }
-  }
-
-  private textToBlocks(text: string) {
-    const paragraphs = text
-      .split('\n\n')
-      .map((p) => p.trim())
-      .filter(Boolean);
-    return paragraphs.map((para) => ({
-      object: 'block' as const,
-      type: 'code' as const,
-      code: {
-        rich_text: [{ type: 'text' as const, text: { content: para } }],
-        language: 'plain text' as const,
-      },
-    }));
   }
 }
