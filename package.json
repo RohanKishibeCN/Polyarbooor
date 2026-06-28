@@ -1,0 +1,25 @@
+{
+  "name": "polyarbooor",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Polymarket BTC 15min Box Arbitrage Bot (TypeScript)",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@polymarket/clob-client": "^5.8.1",
+    "@notionhq/client": "^2.2.15",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  }
+}
