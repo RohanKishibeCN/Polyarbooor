@@ -46,21 +46,18 @@ export class SimpleArbitrageBot {
     this.noTokenId = '';
   }
 
-  /** 返回 Asia/Shanghai 时区的日期字符串（YYYY-MM-DD） */
   private getCstDate(): string {
     const now = new Date();
     const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
     return cst.toISOString().slice(0, 10);
   }
 
-  /** 返回 Asia/Shanghai 时区的小时和分钟（例: {h:9, m:5}） */
   private getCstHourMinute(): { h: number; m: number } {
     const now = new Date();
     const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
     return { h: cst.getUTCHours(), m: cst.getUTCMinutes() };
   }
 
-  /** 返回昨天的日期（Asia/Shanghai） */
   private getYesterdayCst(): string {
     const now = new Date();
     const cst = new Date(now.getTime() + 8 * 60 * 60 * 1000);
@@ -77,9 +74,7 @@ export class SimpleArbitrageBot {
         slug = this.settings.marketSlug;
         logger.info(`使用配置的市场: ${slug}`);
       } else {
-        throw new Error(
-          'Could not find BTC 15min market and no slug configured',
-        );
+        throw new Error('Could not find BTC 15min market and no slug configured');
       }
     }
 
@@ -120,7 +115,6 @@ export class SimpleArbitrageBot {
     const now = Math.floor(Date.now() / 1000);
     const remaining = this.marketEndTimestamp - now;
     if (remaining <= 0) return 'CLOSED';
-
     const mins = Math.floor(remaining / 60);
     const secs = remaining % 60;
     return `${mins}m ${secs}s`;
@@ -130,17 +124,10 @@ export class SimpleArbitrageBot {
     const timeRemaining = this.getTimeRemaining();
     if (timeRemaining === 'CLOSED') return false;
 
-    const opp = await checkArbitrage(
-      this.settings,
-      this.yesTokenId,
-      this.noTokenId,
-    );
+    const opp = await checkArbitrage(this.settings, this.yesTokenId, this.noTokenId);
     if (opp) {
       this.opportunitiesFound += 1;
-
-      if (!this.preTradeCheck(timeRemaining)) {
-        return false;
-      }
+      if (!this.preTradeCheck(timeRemaining)) return false;
 
       const success = await executeArbitrage(opp, {
         settings: this.settings,
@@ -165,15 +152,9 @@ export class SimpleArbitrageBot {
       if (!success) {
         this.consecutiveFailures += 1;
         this.ledger.failedOrders += 1;
-        if (
-          this.settings.maxConsecutiveFailures > 0 &&
-          this.consecutiveFailures >= this.settings.maxConsecutiveFailures
-        ) {
-          logger.error(
-            `🛑 连续失败 ${this.consecutiveFailures} 次，触发熔断`,
-          );
+        if (this.settings.maxConsecutiveFailures > 0 && this.consecutiveFailures >= this.settings.maxConsecutiveFailures) {
+          logger.error(`🛑 连续失败 ${this.consecutiveFailures} 次，触发熔断`);
           this.ledger.circuitBreaks += 1;
-          await this.pushDailySummary();
           process.exit(1);
         }
       }
@@ -182,38 +163,20 @@ export class SimpleArbitrageBot {
 
     const balance = await getBalance(this.settings);
     this.ledger.setBalanceSnapshot(balance);
-
     return false;
   }
 
   private preTradeCheck(timeRemaining: string): boolean {
-    const s = this.settings;
-
-    if (
-      s.minTimeRemainingMinutes > 0 &&
-      this.marketEndTimestamp
-    ) {
+    if (this.settings.minTimeRemainingMinutes > 0 && this.marketEndTimestamp) {
       const now = Math.floor(Date.now() / 1000);
-      const remainingMin =
-        (this.marketEndTimestamp - now) / 60;
-      if (remainingMin < s.minTimeRemainingMinutes) {
-        logger.info(
-          `⚠️ 市场剩余时间不足: ${remainingMin.toFixed(1)} 分钟`,
-        );
+      const remainingMin = (this.marketEndTimestamp - now) / 60;
+      if (remainingMin < this.settings.minTimeRemainingMinutes) {
         return false;
       }
     }
-
-    if (
-      s.maxTradesPerMarket > 0 &&
-      this.currentMarketTrades >= s.maxTradesPerMarket
-    ) {
-      logger.info(
-        `⚠️ 当前市场已达交易上限: ${this.currentMarketTrades}/${s.maxTradesPerMarket}`,
-      );
+    if (this.settings.maxTradesPerMarket > 0 && this.currentMarketTrades >= this.settings.maxTradesPerMarket) {
       return false;
     }
-
     return true;
   }
 
@@ -223,14 +186,12 @@ export class SimpleArbitrageBot {
     logger.info('='.repeat(70));
     logger.info(`市场: ${this.marketSlug}`);
     logger.info(`剩余时间: ${this.getTimeRemaining()}`);
-    logger.info(
-      `模式: ${this.settings.dryRun ? '🔸 模拟' : '🔴 真实交易'}`,
-    );
+    logger.info(`模式: ${this.settings.dryRun ? '🔸 模拟' : '🔴 真实交易'}`);
     logger.info(`成本阈值: $${this.settings.targetPairCost}`);
     logger.info(`订单数量: ${this.settings.orderSize} 股`);
     logger.info(`扫描间隔: ${this.settings.scanInterval}秒`);
     logger.info('='.repeat(70));
-    logger.info(`📅 每日 09:05 (UTC+8) 推送前一日汇总到 Notion`);
+    logger.info('📅 每日 09:05 (UTC+8) 推送前一日汇总到 Notion');
     logger.info('');
 
     let scanCount = 0;
@@ -238,14 +199,10 @@ export class SimpleArbitrageBot {
 
     while (true) {
       scanCount += 1;
-      logger.info(
-        `\n[Scan #${scanCount}] ${new Date().toISOString().slice(11, 19)}`,
-      );
+      logger.info(`\n[Scan #${scanCount}] ${new Date().toISOString().slice(11, 19)}`);
 
       if (this.getTimeRemaining() === 'CLOSED') {
         logger.info('\n🚨 市场已关闭！');
-        await this.pushDailySummary();
-
         logger.info('\n🔄 正在搜索下一个 BTC 15分钟市场...');
         try {
           const newSlug = await findCurrentBtc15minMarket();
@@ -258,8 +215,7 @@ export class SimpleArbitrageBot {
             this.yesTokenId = info.yesTokenId;
             this.noTokenId = info.noTokenId;
             const match = newSlug.match(/btc-updown-15m-(\d+)/);
-            if (match)
-              this.marketEndTimestamp = parseInt(match[1], 10) + 900;
+            if (match) this.marketEndTimestamp = parseInt(match[1], 10) + 900;
             scanCount = 0;
           } else {
             logger.info('⏳ 等待新市场... (30秒)');
@@ -271,9 +227,7 @@ export class SimpleArbitrageBot {
         }
       } else {
         await this.runOnce();
-        logger.info(
-          `发现的机会: ${this.opportunitiesFound}/${scanCount}`,
-        );
+        logger.info(`发现的机会: ${this.opportunitiesFound}/${scanCount}`);
       }
 
       await this.checkScheduledPush();
@@ -282,7 +236,6 @@ export class SimpleArbitrageBot {
 
     process.on('SIGINT', async () => {
       logger.info('\n🛑 机器人已被用户停止');
-      await this.pushDailySummary();
       process.exit(0);
     });
   }
@@ -292,42 +245,20 @@ export class SimpleArbitrageBot {
     if (today === this._lastPushDate) return;
 
     const { h, m } = this.getCstHourMinute();
-    // 09:05 之后触发（给一个 5 分钟宽限期，确保所有市场都已结算）
     if (h < 9 || (h === 9 && m < 5)) return;
 
     this._lastPushDate = today;
 
-    // 推送上一天的汇总
-    const yesterday = this.getYesterdayCst();
+    const summaryDate = this.getYesterdayCst();
     const balance = await getBalance(this.settings);
     const uptime = (Date.now() - this._startTime) / 1000;
-    const text = this.ledger.buildSummaryText(
-      balance,
-      this.settings.dryRun,
-      uptime,
-      this.opportunitiesFound,
-    );
-    const title = `${yesterday} BTC Arb Summary`;
-    await this.notion.pushTextPage(yesterday, title, text);
+    const text = this.ledger.buildSummaryText(balance, this.settings.dryRun, uptime, this.opportunitiesFound);
+    const title = `${summaryDate} BTC Arb Summary`;
+    await this.notion.pushTextPage(summaryDate, title, text);
 
-    // 重置账本
     this.ledger.reset();
     this._startTime = Date.now();
     this.opportunitiesFound = 0;
-  }
-
-  async pushDailySummary() {
-    const balance = await getBalance(this.settings);
-    const uptime = (Date.now() - this._startTime) / 1000;
-    const text = this.ledger.buildSummaryText(
-      balance,
-      this.settings.dryRun,
-      uptime,
-      this.opportunitiesFound,
-    );
-    const yesterday = this.getYesterdayCst();
-    const title = `${yesterday} BTC Arb Summary`;
-    await this.notion.pushTextPage(yesterday, title, text);
   }
 }
 
