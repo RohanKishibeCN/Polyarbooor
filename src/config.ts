@@ -42,7 +42,7 @@ export function loadSettings(): Settings {
     minNetProfit: envNum('MIN_NET_PROFIT', 0.02),
 
     dryRun: envBool('DRY_RUN', true),
-    maxTradesPerMarket: envInt('MAX_TRADES_PER_MARKET', 0),
+    maxTradesPerMarket: envInt('MAX_TRADES_PER_MARKET', 3),
     minTimeRemainingMinutes: envInt('MIN_TIME_REMAINING_MINUTES', 1),
     balanceSlack: envNum('BALANCE_SLACK', 0.15),
     cooldownSeconds: envNum('COOLDOWN_SECONDS', 5),
@@ -59,6 +59,7 @@ export function loadSettings(): Settings {
 
     scanInterval: envNum('SCAN_INTERVAL', 2),
     marketSwitchDelay: envNum('MARKET_SWITCH_DELAY', 30),
+    marketScanIntervalMinutes: envNum('MARKET_SCAN_INTERVAL_MINUTES', 15),
 
     notionEnabled: envBool('NOTION_ENABLED', false),
     notionApiKey: envStr('NOTION_API_KEY'),

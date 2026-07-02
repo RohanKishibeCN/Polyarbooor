@@ -1,5 +1,5 @@
 import { loadSettings } from './config.js';
-import { SimpleArbitrageBot } from './strategy/bot.js';
+import { MakerBot } from './strategy/bot.js';
 import { logger } from './utils/logger.js';
 
 async function main() {
@@ -10,14 +10,13 @@ async function main() {
     process.exit(1);
   }
 
-  // 重试循环 — 出错后自动重试，不崩溃退出
-  const RETRY_DELAY_MS = 15000;  // 每次重试间隔 15 秒
+  const RETRY_DELAY_MS = 15000;
 
   while (true) {
     try {
-      const bot = new SimpleArbitrageBot(settings);
+      const bot = new MakerBot(settings);
       await bot.init();
-      await bot.monitor(settings.scanInterval * 1000);
+      await bot.run();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       logger.error(`❌ 发生错误: ${msg}`);

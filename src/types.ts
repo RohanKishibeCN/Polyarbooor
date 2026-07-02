@@ -1,5 +1,4 @@
 export interface Settings {
-  // API 凭证
   privateKey: string;
   signatureType: number;
   funder: string;
@@ -7,18 +6,15 @@ export interface Settings {
   apiSecret: string;
   apiPassphrase: string;
 
-  // 市场配置
   marketSlug: string;
   marketId: string;
   yesTokenId: string;
   noTokenId: string;
 
-  // 策略参数
   targetPairCost: number;
   orderSize: number;
   minNetProfit: number;
 
-  // 风控参数
   dryRun: boolean;
   maxTradesPerMarket: number;
   minTimeRemainingMinutes: number;
@@ -28,7 +24,6 @@ export interface Settings {
   maxDailyLoss: number;
   maxConsecutiveFailures: number;
 
-  // Gas & 网络
   estGasPerOrder: number;
   clobHost: string;
   chainId: number;
@@ -36,16 +31,14 @@ export interface Settings {
   apiRetryCount: number;
   apiRetryDelay: number;
 
-  // 监控
   scanInterval: number;
   marketSwitchDelay: number;
+  marketScanIntervalMinutes: number;
 
-  // Notion
   notionEnabled: boolean;
   notionApiKey: string;
   notionDatabaseId: string;
 
-  // 日志
   verbose: boolean;
   logFile: string;
   hideCredentials: boolean;
@@ -114,4 +107,20 @@ export interface TradeRecord {
   expectedProfit: number;
   partiallyFilled: boolean;
   marketResult: string;
+}
+
+export interface ScannedMarket {
+  slug: string;
+  question: string;
+  yesTokenId: string;
+  noTokenId: string;
+  endDate: string;
+  yesBestBid: number;
+  noBestBid: number;
+  yesBestAsk: number;
+  noBestAsk: number;
+  spreadWidth: number;
+  isSymmetric: boolean;
+  bidPairCost: number;
+  scoreHint: string;
 }

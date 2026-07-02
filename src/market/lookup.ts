@@ -20,7 +20,6 @@ export async function fetchMarketFromSlug(slug: string): Promise<MarketInfo> {
     throw new Error(`市场未找到 CLOB token: ${cleanSlug}`);
   }
 
-  // Gamma API 返回的 clobTokenIds/outcomes 是 JSON 字符串，需解析
   const clobTokens: string[] = JSON.parse(clobTokenIdsRaw);
   const outcomes: string[] = outcomesRaw ? JSON.parse(outcomesRaw) : [];
 
