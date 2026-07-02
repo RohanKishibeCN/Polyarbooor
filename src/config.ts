@@ -37,10 +37,9 @@ export function loadSettings(): Settings {
     yesTokenId: envStr('POLYMARKET_YES_TOKEN_ID'),
     noTokenId: envStr('POLYMARKET_NO_TOKEN_ID'),
 
-    targetPairCost: envNum('TARGET_PAIR_COST', 0.99),
-    orderSize: envNum('ORDER_SIZE', 50),
-    maxSinglePrice: envNum('MAX_SINGLE_PRICE', 0.75),
-    minNetProfit: envNum('MIN_NET_PROFIT', 0.10),
+    targetPairCost: envNum('TARGET_PAIR_COST', 1.01),
+    orderSize: envNum('ORDER_SIZE', 5),
+    minNetProfit: envNum('MIN_NET_PROFIT', 0.02),
 
     dryRun: envBool('DRY_RUN', true),
     maxTradesPerMarket: envInt('MAX_TRADES_PER_MARKET', 0),

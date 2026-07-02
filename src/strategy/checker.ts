@@ -13,28 +13,33 @@ export async function checkArbitrage(
     getFullOrderBook(noTokenId, settings.clobHost).catch(() => null),
   ]);
 
-  if (!upBook || !downBook) return null;
+  if (!upBook || !downBook) {
+    logger.debug('获取订单簿失败');
+    return null;
+  }
 
-  const upAsks = filterValidAsks(upBook, settings.maxSinglePrice);
-  const downAsks = filterValidAsks(downBook, settings.maxSinglePrice);
+  const upAsks = upBook.asks.filter((a) => parseFloat(a.price) > 0);
+  const downAsks = downBook.asks.filter((a) => parseFloat(a.price) > 0);
 
   const upVwap = calcVwap(settings.orderSize, upAsks);
   const downVwap = calcVwap(settings.orderSize, downAsks);
 
   if (!upVwap || !downVwap) {
-    logger.debug('订单簿深度不足，无法满足 order_size');
-    return null;
-  }
-
-  if (
-    upVwap.vwap >= settings.maxSinglePrice ||
-    downVwap.vwap >= settings.maxSinglePrice
-  ) {
+    const upDepth = upAsks.reduce((s, a) => s + parseFloat(a.size), 0);
+    const downDepth = downAsks.reduce((s, a) => s + parseFloat(a.size), 0);
+    logger.info(
+      `深度不足: UP=${upDepth.toFixed(0)}股, DOWN=${downDepth.toFixed(0)}股 (需要 ${settings.orderSize}股)`,
+    );
     return null;
   }
 
   const totalCost = upVwap.vwap + downVwap.vwap;
-  if (totalCost >= settings.targetPairCost) return null;
+  if (totalCost >= settings.targetPairCost) {
+    logger.info(
+      `总成本 ${totalCost.toFixed(4)} ≥ 阈值 ${settings.targetPairCost} (UP=${upVwap.vwap.toFixed(4)}, DOWN=${downVwap.vwap.toFixed(4)})`,
+    );
+    return null;
+  }
 
   const estGas = settings.estGasPerOrder * 2;
   const grossProfit = (1.0 - totalCost) * settings.orderSize;
@@ -64,10 +69,4 @@ export async function checkArbitrage(
     downMaxPrice: downVwap.maxPrice,
     timestamp: new Date().toISOString(),
   };
-}
-
-function filterValidAsks(book: RawOrderBook, maxPrice: number) {
-  return book.asks.filter(
-    (a) => parseFloat(a.price) > 0 && parseFloat(a.price) < maxPrice,
-  );
 }

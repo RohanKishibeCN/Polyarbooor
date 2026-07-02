@@ -16,7 +16,6 @@ export interface Settings {
   // 策略参数
   targetPairCost: number;
   orderSize: number;
-  maxSinglePrice: number;
   minNetProfit: number;
 
   // 风控参数
